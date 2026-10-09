@@ -86,6 +86,32 @@ func TestServerDefaults(t *testing.T) {
 	require.ErrorContains(t, client.Write("/foo.txt", []byte("hello world 2"), 0666), "403")
 }
 
+func TestServerMkcolExistingCollection(t *testing.T) {
+	t.Parallel()
+
+	dir := makeTestDirectory(t, map[string][]byte{
+		"existing/":     nil,
+		"existing/file": []byte("foo"),
+		"foo.txt":       []byte("foo"),
+	})
+
+	srv := makeTestServer(t, "directory: "+dir+"\npermissions: CRUD")
+	defer srv.Close()
+
+	client := gowebdav.NewClient(srv.URL, "", "")
+
+	// MKCOL on a collection that already exists should succeed rather than
+	// failing: the end state is what the client wanted either way.
+	require.NoError(t, client.Mkdir("/existing", 0666))
+
+	// Creating a new collection still works.
+	require.NoError(t, client.Mkdir("/new", 0666))
+	require.NoError(t, client.MkdirAll("/new/path", 0666))
+
+	// MKCOL on a path that is a file is still an error.
+	require.Error(t, client.Mkdir("/foo.txt", 0666))
+}
+
 func TestServerCORSPrivateNetwork(t *testing.T) {
 	t.Parallel()
 

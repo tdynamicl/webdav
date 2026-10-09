@@ -314,6 +314,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// MKCOL on a collection that already exists is treated as a no-op success.
+	// The upstream handler in golang.org/x/net/webdav returns 405 Method Not
+	// Allowed for that case per RFC 4918 §9.3.1, but the collection is what the
+	// client wanted either way, so the request is a success here.
+	if r.Method == "MKCOL" && r.ContentLength == 0 {
+		info, err := user.fs.Stat(r.Context(), req.path)
+		if err == nil && info.IsDir() {
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+	}
+
 	// Runs the WebDAV.
 	user.handler.ServeHTTP(w, r)
 }
